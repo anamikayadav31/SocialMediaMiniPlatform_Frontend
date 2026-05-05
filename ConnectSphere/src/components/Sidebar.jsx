@@ -1,20 +1,31 @@
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { notifApi } from "../services/api";
 
 export default function Sidebar({ activePage, onNavigate, isAdmin = false }) {
   const { user, logout } = useAuth();
+  // FIX: Real unread count from API — was hardcoded 3
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user?.userId) return;
+    notifApi.getAll(user.userId)
+      .then(d => {
+        const list = Array.isArray(d) ? d : [];
+        setUnreadCount(list.filter(n => !n.isRead).length);
+      })
+      .catch(() => setUnreadCount(0));
+  }, [user?.userId]);
 
   const navItems = [
     { icon: "🏠", label: "Home Feed",     page: "feed" },
     { icon: "🔍", label: "Explore",       page: "explore" },
-    { icon: "🔔", label: "Notifications", page: "notifications", badge: true },
+    { icon: "🔔", label: "Notifications", page: "notifications", badge: unreadCount },
     { icon: "👤", label: "My Profile",    page: "profile" },
   ];
 
   const adminItems = [
-    { icon: "📊", label: "Dashboard",    page: "admin" },
-    { icon: "👥", label: "Manage Users", page: "admin-users" },
-    { icon: "📢", label: "Broadcast",    page: "admin-broadcast" },
-    { icon: "📋", label: "Audit Logs",   page: "admin-logs" },
+    { icon: "👥", label: "Manage Users", page: "admin" },
   ];
 
   const initials = user?.fullName
@@ -35,7 +46,9 @@ export default function Sidebar({ activePage, onNavigate, isAdmin = false }) {
             onClick={() => onNavigate(item.page)}>
             <span className="nav-icon">{item.icon}</span>
             <span>{item.label}</span>
-            {item.badge && <span className="nav-badge">3</span>}
+            {item.badge > 0 && (
+              <span className="nav-badge">{item.badge}</span>
+            )}
           </div>
         ))}
 
@@ -62,7 +75,7 @@ export default function Sidebar({ activePage, onNavigate, isAdmin = false }) {
 
       <div className="sidebar-user" onClick={() => onNavigate("profile", null)}>
         <div className="avatar avatar-sm"
-          style={{ background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)" }}>
+          style={{ background:"linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)" }}>
           {initials}
         </div>
         <div style={{ flex:1, minWidth:0 }}>

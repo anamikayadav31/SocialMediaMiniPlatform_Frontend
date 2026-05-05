@@ -1,118 +1,111 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { postApi, userApi } from "../services/api";
 
 export default function Topbar({ title, onNavigate }) {
-  // FIX: useAuth se real user lo — was hardcoded "A"
   const { user } = useAuth();
-  const [query, setQuery]           = useState("");
-  const [results, setResults]       = useState([]);
-  const [searching, setSearching]   = useState(false);
-  const [showResults, setShowResults] = useState(false);
+  const [query, setQuery]         = useState("");
+  const [results, setResults]     = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [showDrop, setShowDrop]   = useState(false);
+  const debounceRef = useRef(null);
 
-  // FIX: Search actually calls API now — was just a dead input
-  const handleSearch = async (e) => {
-    const val = e.target.value;
-    setQuery(val);
-
-    if (!val.trim() || val.trim().length < 2) {
-      setResults([]);
-      setShowResults(false);
-      return;
-    }
-
-    setSearching(true);
-    setShowResults(true);
+  const doSearch = async (q) => {
+    if (!q.trim() || q.trim().length < 2) { setResults([]); setShowDrop(false); return; }
+    setSearching(true); setShowDrop(true);
     try {
-      // Search both posts and users in parallel
-      const [posts, users] = await Promise.allSettled([
-        postApi.search(val.trim()),
-        userApi.search(val.trim()),
+      const isHashtag = q.startsWith("#");
+      // FIX: Hashtag search karte waqt # hata do, backend ko clean string chahiye
+      // Backend ab Content OR Hashtags dono me search karta hai
+      const sq = isHashtag ? q.slice(1) : q;
+
+      const [p, u] = await Promise.allSettled([
+        postApi.search(sq),
+        // FIX: Hashtag search me users mat dhundo
+        isHashtag ? Promise.resolve([]) : userApi.search(sq),
       ]);
 
-      const postResults = (posts.status === "fulfilled" && Array.isArray(posts.value))
-        ? posts.value.slice(0, 3).map(p => ({ type: "post", id: p.postId, label: p.content?.slice(0, 60) + "…" }))
+      const posts = p.status === "fulfilled" && Array.isArray(p.value)
+        ? p.value.slice(0, 4).map(x => ({
+            type: "post",
+            label: x.content?.slice(0, 50) + (x.content?.length > 50 ? "…" : ""),
+            sublabel: x.hashtags ? x.hashtags.split(",").slice(0,3).join(" ") : "",
+            id: x.postId,
+            userId: x.userId,
+          }))
         : [];
 
-      const userResults = (users.status === "fulfilled" && Array.isArray(users.value))
-        ? users.value.slice(0, 3).map(u => ({ type: "user", id: u.userId, label: `@${u.userName} — ${u.fullName}` }))
+      const users = u.status === "fulfilled" && Array.isArray(u.value)
+        ? u.value.slice(0, 3).map(x => ({
+            type: "user",
+            label: x.fullName || x.userName,
+            sublabel: `@${x.userName}`,
+            id: x.userId,
+          }))
         : [];
 
-      setResults([...userResults, ...postResults]);
-    } catch {
-      setResults([]);
-    } finally {
-      setSearching(false);
+      setResults([...users, ...posts]);
+    } catch { setResults([]); }
+    finally { setSearching(false); }
+  };
+
+  const handleInput = (e) => {
+    const v = e.target.value;
+    setQuery(v);
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => doSearch(v), 350);
+  };
+
+  // Press Enter → go to Explore page with the query pre-filled
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && query.trim().length >= 2) {
+      setShowDrop(false);
+      onNavigate("explore", null, query.trim());
     }
   };
 
-  const handleBlur = () => {
-    // Small delay so click on result registers before blur hides it
-    setTimeout(() => setShowResults(false), 150);
-  };
-
-  // Avatar initials from real user
-  const initials = user?.userName?.[0]?.toUpperCase() ?? "?";
+  const initials = user?.fullName?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()
+    ?? user?.userName?.[0]?.toUpperCase() ?? "?";
 
   return (
     <div className="topbar">
-      <div className="page-title" style={{ fontSize: 18, marginRight: 8 }}>{title}</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: "var(--text-primary)", marginRight: 8, whiteSpace: "nowrap" }}>{title}</div>
 
-      {/* FIX: Search now calls postApi.search + userApi.search */}
-      <div className="search-bar" style={{ position: "relative" }}>
+      <div className="search-bar">
         <span className="search-icon">🔍</span>
         <input
-          placeholder="Search posts, people, hashtags..."
+          placeholder="Search posts, #hashtags, people…"
           value={query}
-          onChange={handleSearch}
-          onFocus={() => results.length > 0 && setShowResults(true)}
-          onBlur={handleBlur}
+          onChange={handleInput}
+          onKeyDown={handleKeyDown}
+          onFocus={() => results.length > 0 && setShowDrop(true)}
+          onBlur={() => setTimeout(() => setShowDrop(false), 150)}
         />
 
-        {/* Search results dropdown */}
-        {showResults && (
+        {showDrop && (
           <div style={{
-            position: "absolute",
-            top: "calc(100% + 6px)",
-            left: 0,
-            right: 0,
-            background: "var(--bg-elevated, var(--color-background-secondary))",
-            border: "1px solid var(--border)",
-            borderRadius: 10,
-            boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
-            zIndex: 999,
-            overflow: "hidden",
-            minWidth: 280,
+            position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, minWidth: 300,
+            background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 10,
+            boxShadow: "0 8px 24px rgba(0,0,0,0.12)", zIndex: 999, overflow: "hidden"
           }}>
-            {searching && (
-              <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-secondary)" }}>
-                Searching…
-              </div>
-            )}
+            {searching && <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>Searching…</div>}
             {!searching && results.length === 0 && (
-              <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-secondary)" }}>
-                No results found
-              </div>
+              <div style={{ padding: "10px 14px", fontSize: 13, color: "var(--text-muted)" }}>No results — try Enter to search in Explore</div>
             )}
-            {!searching && results.map((r, i) => (
+            {results.map((r, i) => (
               <div key={i}
-                style={{
-                  padding: "9px 14px",
-                  fontSize: 13,
-                  cursor: "pointer",
-                  borderTop: i > 0 ? "1px solid var(--border)" : "none",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                }}
+                style={{ padding: "10px 14px", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, borderTop: i > 0 ? "1px solid var(--border)" : "none" }}
                 onMouseDown={() => {
-                  setQuery("");
-                  setShowResults(false);
-                  if (r.type === "user") onNavigate("profile");
-                  else onNavigate("explore");
+                  setQuery(""); setShowDrop(false);
+                  if (r.type === "user") onNavigate("profile", r.id);
+                  // FIX: Post result click karne pe Explore pe jaao with query
+                  else onNavigate("explore", null, query.trim());
                 }}>
-                <span style={{ fontSize: 14 }}>{r.type === "user" ? "👤" : "📝"}</span>
-                <span className="truncate">{r.label}</span>
+                <span style={{ fontSize: 16 }}>{r.type === "user" ? "👤" : "📝"}</span>
+                <div style={{ flex: 1, overflow: "hidden" }}>
+                  <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.label}</div>
+                  {r.sublabel && <div style={{ fontSize: 11, color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.sublabel}</div>}
+                </div>
               </div>
             ))}
           </div>
@@ -120,17 +113,12 @@ export default function Topbar({ title, onNavigate }) {
       </div>
 
       <div className="topbar-actions">
-        <div className="icon-btn tooltip" data-tip="Notifications"
-          onClick={() => onNavigate("notifications")}>
-          🔔
-          <span className="notif-dot" />
+        <div className="icon-btn" onClick={() => onNavigate("notifications")}>
+          🔔 <span className="notif-dot" />
         </div>
-        <div className="icon-btn tooltip" data-tip="Messages">💬</div>
-
-        {/* FIX: Real user initial instead of hardcoded "A" */}
         <div className="avatar avatar-sm"
-          style={{ cursor: "pointer", background: "linear-gradient(135deg,#6C3FF5,#F5A623)" }}
-          onClick={() => onNavigate("profile")}>
+          style={{ cursor: "pointer", background: "linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)" }}
+          onClick={() => onNavigate("profile", null)}>
           {initials}
         </div>
       </div>

@@ -12,27 +12,29 @@ import AdminDashboard from "./pages/AdminDashboard";
 
 function AppInner() {
   const { user, loading, logout, isAdmin } = useAuth();
-  const [page, setPage]           = useState("login");
-  // profileUserId = null means own profile, otherwise visiting another user
+  const [page, setPage]               = useState("login");
   const [profileUserId, setProfileUserId] = useState(null);
+  // FIX: Topbar search se Explore pe query pass karne ke liye
+  const [exploreQuery, setExploreQuery]   = useState("");
 
   useEffect(() => {
     if (!loading) setPage(user ? "feed" : "login");
   }, [loading, user]);
 
-  // navigate("profile") = own profile
-  // navigate("profile", 42) = user 42's profile
-  const navigate = (p, userId = null) => {
+  // FIX: navigate ab 3rd param accept karta hai — exploreQuery
+  // navigate("explore", null, "#sun")  →  Explore khulega aur #sun search ho jaayega
+  const navigate = (p, userId = null, query = "") => {
     if (p === "logout") { logout().then(() => setPage("login")); return; }
     if (p === "profile") setProfileUserId(userId);
+    if (p === "explore") setExploreQuery(query);
     setPage(p);
   };
 
   if (loading) {
     return (
-      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100vh", flexDirection:"column", gap:16 }}>
-        <div style={{ fontSize:48 }}>🌐</div>
-        <p style={{ color:"var(--text-secondary)" }}>Loading ConnectSphere…</p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100vh", flexDirection: "column", gap: 16 }}>
+        <div style={{ fontSize: 48 }}>🌐</div>
+        <p style={{ color: "var(--text-secondary)" }}>Loading ConnectSphere…</p>
       </div>
     );
   }
@@ -45,12 +47,13 @@ function AppInner() {
   const renderPage = () => {
     switch (page) {
       case "feed":          return <Feed onNavigate={navigate} />;
-      case "explore":       return <Explore onNavigate={navigate} />;
+      // FIX: exploreQuery pass kar do Explore ko — Topbar search se aaya query
+      case "explore":       return <Explore onNavigate={navigate} initialQuery={exploreQuery} />;
       case "notifications": return <Notifications onNavigate={navigate} />;
       case "profile":       return (
         <Profile
           onNavigate={navigate}
-          viewUserId={profileUserId}   // null = own profile
+          viewUserId={profileUserId}
         />
       );
       case "admin":
@@ -59,10 +62,10 @@ function AppInner() {
       case "admin-logs":    return <AdminDashboard onNavigate={navigate} />;
       default:
         return (
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"80vh", flexDirection:"column", gap:16 }}>
-            <div style={{ fontSize:64 }}>🚧</div>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "80vh", flexDirection: "column", gap: 16 }}>
+            <div style={{ fontSize: 64 }}>🚧</div>
             <h2>Coming Soon</h2>
-            <p style={{ color:"var(--text-secondary)" }}>This page is under construction</p>
+            <p style={{ color: "var(--text-secondary)" }}>This page is under construction</p>
             <button className="btn btn-primary" onClick={() => navigate("feed")}>← Go Home</button>
           </div>
         );

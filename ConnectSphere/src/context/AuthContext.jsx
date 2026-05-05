@@ -34,6 +34,13 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+  const googleLogin = async (idToken) => {
+    const data = await authApi.googleLogin(idToken);
+    setUser({ userId: data.userId, userName: data.userName, fullName: data.fullName, role: data.role });
+    setToken(data.token);
+    return data;
+  };
+
   const logout = async () => {
     await authApi.logout();
     setUser(null);
@@ -41,7 +48,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, isAdmin: user?.role === "Admin" }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, googleLogin, logout, isAdmin: user?.role === "Admin" }}>
       {children}
     </AuthContext.Provider>
   );
