@@ -7,7 +7,7 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',  // ApiGateway — single entry point
+        target: 'http://localhost:5000',  // ApiGateway — local dev only
         changeOrigin: true,
         secure: false,
       },
