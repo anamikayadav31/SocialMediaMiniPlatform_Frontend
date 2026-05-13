@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL || "/api";
+const BASE_URL = import.meta.env.VITE_API_URL || "https://connecrsphere-apigateway.onrender.com/api";
 
 export const getToken = () => localStorage.getItem("token");
 export const getUser  = () => JSON.parse(localStorage.getItem("user") || "null");
