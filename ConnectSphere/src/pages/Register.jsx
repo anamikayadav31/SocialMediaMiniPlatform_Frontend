@@ -1,72 +1,35 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-
-const GOOGLE_CLIENT_ID = "256106414119-mmscg4cq29qu5itfgkccs6g35ujnv0qq.apps.googleusercontent.com";
+import { useGoogleAuth } from "../hooks/useGoogleAuth";
 
 export default function Register({ onNavigate }) {
   const { register, googleLogin } = useAuth();
-  const [form, setForm]         = useState({ username: "", fullName: "", email: "", password: "", confirm: "" });
-  const [loading, setLoading]   = useState(false);
-  const [gLoading, setGLoading] = useState(false);
-  const [error, setError]       = useState("");
-  const [gsiReady, setGsiReady] = useState(false);
-  const gsiInitialized          = useRef(false); // ek baar hi initialize hoga
+  const [form, setForm]       = useState({ username: "", fullName: "", email: "", password: "", confirm: "" });
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
 
-  // Load Google GSI script & initialize ONCE
-  useEffect(() => {
-    const initGsi = () => {
-      if (gsiInitialized.current) { setGsiReady(true); return; }
-      if (!window.google?.accounts?.id) return;
-      window.google.accounts.id.initialize({
-        client_id: GOOGLE_CLIENT_ID,
-        callback: handleGoogleResponse,
-        ux_mode: "popup",
-        cancel_on_tap_outside: true,
-      });
-      gsiInitialized.current = true;
-      setGsiReady(true);
-    };
-
-    if (window.google?.accounts) { initGsi(); return; }
-    const existing = document.querySelector('script[src*="accounts.google.com/gsi/client"]');
-    if (existing) { existing.addEventListener("load", initGsi); return; }
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true; script.defer = true;
-    script.onload = initGsi;
-    script.onerror = () => setError("Google SDK load failed.");
-    document.head.appendChild(script);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleGoogleResponse = async (response) => {
-    if (!response?.credential) return;
-    setGLoading(true); setError("");
+  const handleGoogleCredential = async (response) => {
+    if (!response?.credential) {
+      clearLoading();
+      return;
+    }
     try {
       await googleLogin(response.credential);
       onNavigate("feed");
     } catch (err) {
       setError(err.message || "Google sign-up failed.");
-    } finally { setGLoading(false); }
+    } finally {
+      clearLoading();
+    }
   };
 
-  const handleGoogle = () => {
-    if (!gsiReady || !window.google?.accounts?.id) {
-      setError("Google SDK load ho raha hai, thoda wait karo."); return;
-    }
-    window.google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        const tempDiv = document.createElement("div");
-        tempDiv.style.cssText = "position:fixed;top:-9999px;left:-9999px;";
-        document.body.appendChild(tempDiv);
-        window.google.accounts.id.renderButton(tempDiv, { type: "standard", theme: "outline", size: "large" });
-        setTimeout(() => {
-          const btn = tempDiv.querySelector("div[role='button'],button");
-          if (btn) btn.click();
-          document.body.removeChild(tempDiv);
-        }, 200);
-      }
-    });
-  };
+  const {
+    gsiReady,
+    gLoading,
+    gError,
+    handleGoogleClick,
+    clearLoading,
+  } = useGoogleAuth(handleGoogleCredential);
 
   const handle = async (e) => {
     e.preventDefault();
@@ -93,27 +56,28 @@ export default function Register({ onNavigate }) {
     </div>
   );
 
+  const displayError = error || gError;
+
   return (
     <div className="auth-page">
       <div className="auth-bg-effect" />
-      {/* FIX: Same maxWidth 440 as Login card — consistent sizing */}
       <div className="auth-card animate-in" style={{ width: "100%", maxWidth: 440 }}>
         <div className="auth-logo"><span style={{ fontSize: 36 }}>🌐</span></div>
         <div className="logo-text" style={{ textAlign: "center", fontSize: 28, marginBottom: 4 }}>Join ConnectSphere</div>
         <p className="auth-subtitle">Create your account and start connecting</p>
 
-        {error && (
+        {displayError && (
           <div style={{ background: "rgba(239,68,68,0.12)", border: "1px solid rgba(239,68,68,0.4)", borderRadius: 8, padding: "10px 14px", color: "#f87171", fontSize: 13, marginBottom: 8 }}>
-            ⚠️ {error}
+            ⚠️ {displayError}
           </div>
         )}
 
         <form onSubmit={handle} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {field("username", "Username",        "text",     "cooluser123")}
-          {field("fullName", "Full Name",       "text",     "Your full name")}
-          {field("email",    "Email address",   "email",    "you@example.com")}
-          {field("password", "Password",        "password", "Min. 6 characters")}
-          {field("confirm",  "Confirm Password","password", "Repeat password")}
+          {field("username", "Username",         "text",     "cooluser123")}
+          {field("fullName", "Full Name",         "text",     "Your full name")}
+          {field("email",    "Email address",     "email",    "you@example.com")}
+          {field("password", "Password",          "password", "Min. 6 characters")}
+          {field("confirm",  "Confirm Password",  "password", "Repeat password")}
 
           <p className="text-xs text-muted" style={{ marginTop: 2 }}>
             By signing up, you agree to our{" "}
@@ -131,8 +95,13 @@ export default function Register({ onNavigate }) {
           <button
             type="button"
             className="btn btn-outline"
-            style={{ justifyContent: "center", width: "100%", gap: 8, display: "flex", alignItems: "center", opacity: (!gsiReady || gLoading) ? 0.65 : 1, cursor: (!gsiReady || gLoading) ? "not-allowed" : "pointer" }}
-            onClick={handleGoogle}
+            style={{
+              justifyContent: "center", width: "100%", gap: 8,
+              display: "flex", alignItems: "center",
+              opacity: (!gsiReady || gLoading) ? 0.65 : 1,
+              cursor: (!gsiReady || gLoading) ? "not-allowed" : "pointer",
+            }}
+            onClick={handleGoogleClick}
             disabled={!gsiReady || gLoading}
           >
             <svg width="18" height="18" viewBox="0 0 48 48">
@@ -141,7 +110,7 @@ export default function Register({ onNavigate }) {
               <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
               <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
             </svg>
-            {gLoading ? "Signing up…" : !gsiReady ? "Loading Google…" : "Continue with Google"}
+            {gLoading ? "Opening Google…" : !gsiReady ? "Loading Google…" : "Continue with Google"}
           </button>
         </form>
 

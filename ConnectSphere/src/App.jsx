@@ -14,15 +14,20 @@ function AppInner() {
   const { user, loading, logout, isAdmin } = useAuth();
   const [page, setPage]               = useState("login");
   const [profileUserId, setProfileUserId] = useState(null);
-  // FIX: Topbar search se Explore pe query pass karne ke liye
   const [exploreQuery, setExploreQuery]   = useState("");
 
+  // Initial load complete hone pe page set karo (sirf ek baar)
   useEffect(() => {
     if (!loading) setPage(user ? "feed" : "login");
-  }, [loading, user]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
-  // FIX: navigate ab 3rd param accept karta hai — exploreQuery
-  // navigate("explore", null, "#sun")  →  Explore khulega aur #sun search ho jaayega
+  // Agar user null ho jaaye (explicit logout) toh login pe bhejo
+  // BUT: sirf tab jab loading complete ho aur page feed/app tha
+  useEffect(() => {
+    if (!loading && !user && page !== "login" && page !== "register") setPage("login");
+  }, [user, loading]);
+
   const navigate = (p, userId = null, query = "") => {
     if (p === "logout") { logout().then(() => setPage("login")); return; }
     if (p === "profile") setProfileUserId(userId);
@@ -47,7 +52,6 @@ function AppInner() {
   const renderPage = () => {
     switch (page) {
       case "feed":          return <Feed onNavigate={navigate} />;
-      // FIX: exploreQuery pass kar do Explore ko — Topbar search se aaya query
       case "explore":       return <Explore onNavigate={navigate} initialQuery={exploreQuery} />;
       case "notifications": return <Notifications onNavigate={navigate} />;
       case "profile":       return (

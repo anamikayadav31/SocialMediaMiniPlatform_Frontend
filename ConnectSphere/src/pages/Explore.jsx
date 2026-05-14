@@ -154,11 +154,13 @@ export default function Explore({ onNavigate, initialQuery = "" }) {
     postApi.getTrending(48, 30)
       .then(async d => {
         const posts = Array.isArray(d) ? d : [];
-        // Deleted users ki posts filter karo
+        // Filter: Sirf whi posts dikhao jinke users EXIST karte hain aur PRIVATE nahi hain
         const valid = await Promise.all(
           posts.map(async p => {
-            const exists = await userApi.exists(p.userId);
-            return exists ? p : null;
+            try {
+              const u = await userApi.getById(p.userId);
+              return (u && !u.isPrivate) ? p : null;
+            } catch { return null; }
           })
         );
         setTrending(valid.filter(Boolean));
@@ -199,8 +201,18 @@ export default function Explore({ onNavigate, initialQuery = "" }) {
         );
       }
 
+      // Filter posts by user privacy
+      const validPosts = await Promise.all(
+        posts.map(async p => {
+          try {
+            const u = await userApi.getById(p.userId);
+            return (u && !u.isPrivate) ? p : null;
+          } catch { return null; }
+        })
+      );
+
       setSearchResults({
-        posts,
+        posts: validPosts.filter(Boolean),
         users: usersRes.status === "fulfilled" && Array.isArray(usersRes.value) ? usersRes.value : [],
       });
     } catch { setSearchResults({ posts: [], users: [] }); }
@@ -282,7 +294,7 @@ export default function Explore({ onNavigate, initialQuery = "" }) {
         {/* Posts — Trending grid or Search results list */}
         {(!searchResults || activeTab === "posts") && (
           <>
-            {!searchResults && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>🔥 Trending Posts</div>}
+            {!searchResults && <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 12 }}>Posts</div>}
 
             {searchResults && activeTab === "posts" && displayPosts.length === 0 && (
               <div style={{ textAlign: "center", padding: 32, color: "var(--text-secondary)" }}>

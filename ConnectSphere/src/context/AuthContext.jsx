@@ -1,54 +1,106 @@
-import { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { getToken, getUser, clearSession, authApi } from "../services/api";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(getUser);
-  const [token, setToken]     = useState(getToken);
+  const [user,    setUser]    = useState(null);
+  const [token,   setToken]   = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // FIX: validateToken ka backend call hata diya — 401 loop aa raha tha
-  // Token hai toh session chalu rakho, expire hone pe backend khud 401 dega
+  // Track if we're in the middle of a login/register to suppress logout
+  const isAuthInProgress = useRef(false);
+
+  // On mount: restore session from localStorage
   useEffect(() => {
     const storedToken = getToken();
-    if (!storedToken) {
-      clearSession();
-      setUser(null);
-      setToken(null);
+    const storedUser  = getUser();
+    if (storedToken && storedUser) {
+      setUser(storedUser);
+      setToken(storedToken);
     }
     setLoading(false);
   }, []);
 
+  // Listen for auth:logout event from api.js (only when logged in)
+  useEffect(() => {
+    const handleLogout = () => {
+      // Ignore if login/register is currently running
+      if (isAuthInProgress.current) return;
+      setUser(null);
+      setToken(null);
+    };
+    window.addEventListener("auth:logout", handleLogout);
+    return () => window.removeEventListener("auth:logout", handleLogout);
+  }, []);
+
   const login = async (dto) => {
-    const data = await authApi.login(dto);
-    setUser({ userId: data.userId, userName: data.userName, fullName: data.fullName, role: data.role });
-    setToken(data.token);
-    return data;
+    isAuthInProgress.current = true;
+    try {
+      const data = await authApi.login(dto);
+      const u = {
+        userId:   data.userId,
+        userName: data.userName,
+        fullName: data.fullName,
+        role:     data.role,
+      };
+      setUser(u);
+      setToken(data.token);
+      return data;
+    } finally {
+      // Small delay so any queued auth:logout events fire BEFORE we reset the flag
+      setTimeout(() => { isAuthInProgress.current = false; }, 2000);
+    }
   };
 
   const register = async (dto) => {
-    const data = await authApi.register(dto);
-    setUser({ userId: data.userId, userName: data.userName, fullName: data.fullName, role: data.role });
-    setToken(data.token);
-    return data;
+    isAuthInProgress.current = true;
+    try {
+      const data = await authApi.register(dto);
+      const u = {
+        userId:   data.userId,
+        userName: data.userName,
+        fullName: data.fullName,
+        role:     data.role,
+      };
+      setUser(u);
+      setToken(data.token);
+      return data;
+    } finally {
+      setTimeout(() => { isAuthInProgress.current = false; }, 2000);
+    }
   };
 
   const googleLogin = async (idToken) => {
-    const data = await authApi.googleLogin(idToken);
-    setUser({ userId: data.userId, userName: data.userName, fullName: data.fullName, role: data.role });
-    setToken(data.token);
-    return data;
+    isAuthInProgress.current = true;
+    try {
+      const data = await authApi.googleLogin(idToken);
+      const u = {
+        userId:   data.userId,
+        userName: data.userName,
+        fullName: data.fullName,
+        role:     data.role,
+      };
+      setUser(u);
+      setToken(data.token);
+      return data;
+    } finally {
+      setTimeout(() => { isAuthInProgress.current = false; }, 2000);
+    }
   };
 
   const logout = async () => {
-    await authApi.logout();
+    clearSession();
     setUser(null);
     setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, googleLogin, logout, isAdmin: user?.role === "Admin" }}>
+    <AuthContext.Provider value={{
+      user, token, loading,
+      login, register, googleLogin, logout,
+      isAdmin: user?.role === "Admin",
+    }}>
       {children}
     </AuthContext.Provider>
   );

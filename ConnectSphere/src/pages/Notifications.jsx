@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Topbar from "../components/Topbar";
 import { useAuth } from "../context/AuthContext";
 import { notifApi, followApi, userApi } from "../services/api";
@@ -26,13 +26,6 @@ function timeAgo(d) {
   return `${Math.floor(h/24)}d ago`;
 }
 
-// "User 13 liked your post." → "john_doe liked your post."
-function replaceUserIdWithName(message, actorId, userName) {
-  if (!message || !actorId || !userName) return message;
-  // Replace "User {actorId}" pattern with real username
-  return message.replace(new RegExp(`User\\s+${actorId}`, "gi"), userName);
-}
-
 export default function Notifications({ onNavigate }) {
   const { user } = useAuth();
   const [notifs, setNotifs]         = useState([]);
@@ -40,48 +33,30 @@ export default function Notifications({ onNavigate }) {
   const [filter, setFilter]         = useState("all");
   const [pendingMap, setPendingMap] = useState({});
   const [actioning, setActioning]   = useState({});
-  // Cache: actorId → userName
-  const userCache = useRef({});
-
-  // Fetch username by userId, with caching
-  const fetchUserName = async (actorId) => {
-    if (!actorId) return null;
-    if (userCache.current[actorId]) return userCache.current[actorId];
-    try {
-      const data = await userApi.getById(actorId);
-      const name = data?.userName || data?.fullName || data?.username || null;
-      if (name) userCache.current[actorId] = name;
-      return name;
-    } catch {
-      return null;
-    }
-  };
-
-  // After notifs load, fetch usernames for all unique actorIds and update messages
-  const enrichWithUserNames = async (rawNotifs) => {
-    const uniqueActorIds = [...new Set(rawNotifs.map(n => n.actorId).filter(Boolean))];
-    // Fetch all in parallel
-    await Promise.allSettled(uniqueActorIds.map(id => fetchUserName(id)));
-
-    // Now replace "User {id}" in each message
-    return rawNotifs.map(n => {
-      if (!n.actorId) return n;
-      const userName = userCache.current[n.actorId];
-      if (!userName) return n;
-      return {
-        ...n,
-        message: replaceUserIdWithName(n.message ?? n.content ?? "", n.actorId, userName),
-      };
-    });
-  };
 
   useEffect(() => {
     if (!user?.userId) return;
     notifApi.getAll(user.userId)
       .then(async d => {
-        const raw = Array.isArray(d) ? d : [];
-        const enriched = await enrichWithUserNames(raw);
-        setNotifs(enriched);
+        const list = Array.isArray(d) ? d : [];
+        setNotifs(list);
+        
+        // Fetch actor names to replace "User {id}"
+        const actorIds = [...new Set(list.map(n => n.actorId).filter(Boolean))];
+        const details = {};
+        await Promise.allSettled(actorIds.map(async id => {
+          try {
+            const u = await userApi.getById(id);
+            if (u) details[id] = u;
+          } catch {}
+        }));
+        
+        setNotifs(prev => prev.map(n => {
+          const u = details[n.actorId];
+          if (!u || !n.message) return n;
+          const name = u.userName || u.fullName || `User ${n.actorId}`;
+          return { ...n, message: n.message.replace(`User ${n.actorId}`, name) };
+        }));
       })
       .catch(() => setNotifs([]))
       .finally(() => setLoading(false));

@@ -7,10 +7,13 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:5000',  // ApiGateway — local dev only
+        target: 'http://localhost:5000',  // ApiGateway — single entry point
         changeOrigin: true,
         secure: false,
       },
     },
+    // FIX: COOP header hata diya — yeh Google Sign-In ke iframe ka
+    // window.postMessage block kar raha tha (console error aa raha tha).
+    // Google popup ke liye koi extra header ki zaroorat nahi.
   },
 })

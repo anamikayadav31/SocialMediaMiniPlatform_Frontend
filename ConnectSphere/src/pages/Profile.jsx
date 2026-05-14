@@ -361,6 +361,7 @@ export default function Profile({ onNavigate, viewUserId }) {
   const [showEdit, setShowEdit]             = useState(false);
   const [showPwd, setShowPwd]               = useState(false);
   const [privacyLoading, setPrivacyLoading] = useState(false);
+  const [privacyMsg, setPrivacyMsg]         = useState("");
 
   useEffect(() => {
     if (!targetId) return;
@@ -418,9 +419,19 @@ export default function Profile({ onNavigate, viewUserId }) {
 
   const handleTogglePrivacy = async () => {
     setPrivacyLoading(true);
-    try { await userApi.togglePrivacy(profile.userId); setProfile(p=>p?{...p,isPrivate:!p.isPrivate}:p); }
-    catch {}
-    finally { setPrivacyLoading(false); }
+    setPrivacyMsg("");
+    try {
+      await userApi.togglePrivacy(profile.userId);
+      const newState = !profile.isPrivate;
+      setProfile(p => p ? { ...p, isPrivate: newState } : p);
+      setPrivacyMsg(`Account is now ${newState ? "Private" : "Public"}!`);
+      setTimeout(() => setPrivacyMsg(""), 3000);
+    } catch {
+      setPrivacyMsg("Failed to update privacy.");
+      setTimeout(() => setPrivacyMsg(""), 3000);
+    } finally {
+      setPrivacyLoading(false);
+    }
   };
 
   if (loadingP) return (
@@ -569,6 +580,21 @@ export default function Profile({ onNavigate, viewUserId }) {
       {showFollowing && <FollowModal type="following" userId={targetId} onClose={()=>setShowFollowing(false)} onNavigate={onNavigate} />}
       {showEdit && profile && <EditProfileModal profile={profile} onClose={()=>setShowEdit(false)} onSave={p=>setProfile(p)} />}
       {showPwd && <ChangePasswordModal userId={targetId} onClose={()=>setShowPwd(false)} />}
+      
+      {/* Privacy Toggle Popup */}
+      {privacyMsg && (
+        <div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", background:"#1A1A1A", color:"#fff", padding:"12px 24px", borderRadius:12, fontSize:14, fontWeight:600, zIndex:1000, boxShadow:"0 8px 24px rgba(0,0,0,0.2)", display:"flex", alignItems:"center", gap:10, animation:"slideUp 0.3s ease-out" }}>
+          <span>{privacyMsg.includes("Private") ? "🔒" : "🌐"}</span>
+          {privacyMsg}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translate(-50%, 20px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+      `}</style>
     </div>
   );
 }
