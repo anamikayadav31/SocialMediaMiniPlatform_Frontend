@@ -113,7 +113,9 @@ describe("Login – submit", () => {
     fireEvent.submit(screen.getByRole("button", { name: /sign in/i }).closest("form"));
 
     expect(await screen.findByText("Signing in…")).toBeInTheDocument();
-    resolveLogin({});
+    await act(async () => {
+      resolveLogin({});
+    });
   });
 
   test("button is disabled while loading", async () => {
@@ -132,7 +134,10 @@ describe("Login – submit", () => {
     fireEvent.submit(btn.closest("form"));
 
     await waitFor(() => expect(btn).toBeDisabled());
-    resolveLogin({});
+    await act(async () => {
+      resolveLogin({});
+    });
+    await waitFor(() => expect(btn).not.toBeDisabled());
   });
 });
 

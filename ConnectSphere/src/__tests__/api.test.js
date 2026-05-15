@@ -16,7 +16,8 @@ const localStorageMock = (() => {
 })();
 Object.defineProperty(global, "localStorage", { value: localStorageMock });
 
-// ── fetch mock helper ─────────────────────────────────────────────────────────
+const BASE_URL = "http://localhost:5000/api";
+
 function mockFetch(body, { status = 200 } = {}) {
   global.fetch = jest.fn().mockResolvedValue({
     ok: status >= 200 && status < 300,
@@ -73,7 +74,7 @@ describe("authApi", () => {
     const result = await authApi.login({ email: "a@b.com", password: "pass" });
 
     expect(fetch).toHaveBeenCalledWith(
-      "/api/users/login",
+      `${BASE_URL}/users/login`,
       expect.objectContaining({ method: "POST" }),
     );
     expect(result.token).toBe("tok-abc");
@@ -88,7 +89,7 @@ describe("authApi", () => {
     mockFetch(fakeUser);
     await authApi.register({ email: "a@b.com", password: "pass", userName: "alice" });
     expect(fetch).toHaveBeenCalledWith(
-      "/api/users/register",
+      `${BASE_URL}/users/register`,
       expect.objectContaining({ method: "POST" }),
     );
     expect(localStorageMock.setItem).toHaveBeenCalledWith("token", "tok-abc");
@@ -98,7 +99,7 @@ describe("authApi", () => {
     mockFetch(fakeUser);
     await authApi.googleLogin("google-id-token");
     expect(fetch).toHaveBeenCalledWith(
-      "/api/users/google/verify",
+      `${BASE_URL}/users/google/verify`,
       expect.objectContaining({ method: "POST" }),
     );
   });
@@ -126,7 +127,7 @@ describe("userApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await userApi.getById(5);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/users/5",
+      `${BASE_URL}/users/5`,
       expect.objectContaining({
         method: "GET",
         headers: expect.objectContaining({ Authorization: "Bearer tok" }),
@@ -139,7 +140,7 @@ describe("userApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await userApi.search("hello world");
     expect(fetch).toHaveBeenCalledWith(
-      "/api/users/search?q=hello%20world",
+      `${BASE_URL}/users/search?q=hello%20world`,
       expect.anything(),
     );
   });
@@ -185,7 +186,7 @@ describe("postApi", () => {
     mockFetch([]);
     await postApi.getPublic(2, 10);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/posts/public?page=2&pageSize=10",
+      `${BASE_URL}/posts/public?page=2&pageSize=10`,
       expect.anything(),
     );
   });
@@ -195,7 +196,7 @@ describe("postApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await postApi.search("cats & dogs");
     expect(fetch).toHaveBeenCalledWith(
-      "/api/posts/search?q=cats%20%26%20dogs&page=1&pageSize=20",
+      `${BASE_URL}/posts/search?q=cats%20%26%20dogs&page=1&pageSize=20`,
       expect.anything(),
     );
   });
@@ -205,7 +206,7 @@ describe("postApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await postApi.delete(42);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/posts/42",
+      `${BASE_URL}/posts/42`,
       expect.objectContaining({ method: "DELETE" }),
     );
   });
@@ -276,7 +277,7 @@ describe("commentApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await commentApi.edit(5, "Updated!");
     expect(fetch).toHaveBeenCalledWith(
-      "/api/comments/5",
+      `${BASE_URL}/comments/5`,
       expect.objectContaining({ method: "PUT" }),
     );
   });
@@ -299,7 +300,7 @@ describe("followApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await followApi.unfollow(1, 2);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/follows/unfollow",
+      `${BASE_URL}/follows/unfollow`,
       expect.objectContaining({ method: "DELETE" }),
     );
   });
@@ -321,7 +322,7 @@ describe("feedApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await feedApi.getForUser(7, 3, 15);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/feed/7?page=3&pageSize=15",
+      `${BASE_URL}/feed/7?page=3&pageSize=15`,
       expect.anything(),
     );
   });
@@ -336,7 +337,7 @@ describe("notifApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await notifApi.getAll(9);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/notifications/byRecipient/9",
+      `${BASE_URL}/notifications/byRecipient/9`,
       expect.anything(),
     );
   });
@@ -346,7 +347,7 @@ describe("notifApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await notifApi.markAllRead(9);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/notifications/markAllRead/9",
+      `${BASE_URL}/notifications/markAllRead/9`,
       expect.objectContaining({ method: "PUT" }),
     );
   });
@@ -356,7 +357,7 @@ describe("notifApi", () => {
     localStorageMock.getItem.mockReturnValue("tok");
     await notifApi.delete(42);
     expect(fetch).toHaveBeenCalledWith(
-      "/api/notifications/42",
+      `${BASE_URL}/notifications/42`,
       expect.objectContaining({ method: "DELETE" }),
     );
   });

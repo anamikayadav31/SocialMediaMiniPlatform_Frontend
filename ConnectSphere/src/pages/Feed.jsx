@@ -307,7 +307,7 @@ export default function Feed({ onNavigate }) {
               followApi.getFollowingIds(user.userId),
               followApi.getFollowerIds(user.userId)
             ]);
-            const allIds = [...new Set([...(following||[]), ...(followers||[])])];
+            const allIds = [...new Set([...(following||[]), ...(followers||[]), user.userId])];
             
             if (allIds.length > 0) {
               const directFeed = await postApi.getFeed(allIds, 1, 50);

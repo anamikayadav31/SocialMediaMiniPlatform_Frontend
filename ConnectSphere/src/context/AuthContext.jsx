@@ -18,6 +18,9 @@ export function AuthProvider({ children }) {
     if (storedToken && storedUser) {
       setUser(storedUser);
       setToken(storedToken);
+    } else if (storedToken || storedUser) {
+      // Inconsistent session (one exists, other doesn't) -> wipe it
+      clearSession();
     }
     setLoading(false);
   }, []);
