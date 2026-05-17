@@ -261,7 +261,7 @@ function PostCard({ post, currentUser, onDelete, onNavigate }) {
 
 // ─── Main Feed Component ─────────────────────────────────────
 export default function Feed({ onNavigate }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isAdmin } = useAuth();
   const [posts,       setPosts]       = useState([]);
   const [postText,    setPostText]    = useState("");
   const [hashtags,    setHashtags]    = useState("");
@@ -284,37 +284,46 @@ export default function Feed({ onNavigate }) {
       try {
         let feedPosts = [];
 
-        // 1. Try personal feed (following users' posts via FeedService)
-        try {
-          const feedItems = await feedApi.getForUser(user.userId, 1, 50);
-          if (Array.isArray(feedItems) && feedItems.length > 0) {
-            const uniquePostIds = [...new Set(feedItems.map(f => f.postId))];
-            const postResults = await Promise.allSettled(
-              uniquePostIds.map(pid => postApi.getById(pid))
-            );
-            feedPosts = postResults
-              .filter(r => r.status === "fulfilled" && r.value && !r.value.isDeleted)
-              .map(r => r.value);
-          }
-        } catch (feedErr) {
-          console.warn("[Feed] feedApi failed, falling back to public:", feedErr.message);
-        }
-
-        // 2. BACKFILL: If the optimized FeedService is empty, fetch posts from followed/followers directly
-        if (feedPosts.length === 0) {
+        if (isAdmin) {
           try {
-            const [following, followers] = await Promise.all([
-              followApi.getFollowingIds(user.userId),
-              followApi.getFollowerIds(user.userId)
-            ]);
-            const allIds = [...new Set([...(following||[]), ...(followers||[]), user.userId])];
-            
-            if (allIds.length > 0) {
-              const directFeed = await postApi.getFeed(allIds, 1, 50);
-              feedPosts = Array.isArray(directFeed) ? directFeed : [];
+            const publicPosts = await postApi.getPublic(1, 50);
+            feedPosts = Array.isArray(publicPosts) ? publicPosts : [];
+          } catch (adminErr) {
+            console.error("[Feed] Admin public fetch failed:", adminErr.message);
+          }
+        } else {
+          // 1. Try personal feed (following users' posts via FeedService)
+          try {
+            const feedItems = await feedApi.getForUser(user.userId, 1, 50);
+            if (Array.isArray(feedItems) && feedItems.length > 0) {
+              const uniquePostIds = [...new Set(feedItems.map(f => f.postId))];
+              const postResults = await Promise.allSettled(
+                uniquePostIds.map(pid => postApi.getById(pid))
+              );
+              feedPosts = postResults
+                .filter(r => r.status === "fulfilled" && r.value && !r.value.isDeleted)
+                .map(r => r.value);
             }
-          } catch (backfillErr) {
-            console.error("[Feed] Backfill failed:", backfillErr.message);
+          } catch (feedErr) {
+            console.warn("[Feed] feedApi failed, falling back to public:", feedErr.message);
+          }
+
+          // 2. BACKFILL: If the optimized FeedService is empty, fetch posts from followed/followers directly
+          if (feedPosts.length === 0) {
+            try {
+              const [following, followers] = await Promise.all([
+                followApi.getFollowingIds(user.userId),
+                followApi.getFollowerIds(user.userId)
+              ]);
+              const allIds = [...new Set([...(following||[]), ...(followers||[]), user.userId])];
+              
+              if (allIds.length > 0) {
+                const directFeed = await postApi.getFeed(allIds, 1, 50);
+                feedPosts = Array.isArray(directFeed) ? directFeed : [];
+              }
+            } catch (backfillErr) {
+              console.error("[Feed] Backfill failed:", backfillErr.message);
+            }
           }
         }
 
